@@ -41,15 +41,15 @@ async def import_products_csv(file: UploadFile = File(...)):
 
         if file.content_type not in ["text/csv", "application/vnd.ms-excel"]:
             raise HTTPException(status_code=400, detail="Invalid file type. Must be a CSV file.")
-        
+
         upload_dir = "uploads"
         os.makedirs(upload_dir, exist_ok=True)
 
         file_path = os.path.join(upload_dir, f"{uuid.uuid4()}_{file.filename}")
 
+        contents = await file.read()
         with open(file_path, "wb") as f:
-            while chunk := await file.read(512 * 1024):  # 0.5MB chunks
-                f.write(chunk)
+            f.write(contents)
 
         task = celery.send_task("tasks.import_products_from_csv", args=[file_path])
 
@@ -61,4 +61,3 @@ async def import_products_csv(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload CSV: {str(e)}")
-

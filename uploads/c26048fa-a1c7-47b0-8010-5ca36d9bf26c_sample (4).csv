@@ -1,0 +1,4 @@
+product_id,title,isDeleted,createdAt,updatedAt,metadata,variant_id,color,colorCode,size,img,price,stock,variant_isDeleted,variant_metadata
+9b9134fd-534e-4dce-a799-1dd865c11234,Qbatch Test,False,2025-10-31 07:51:55.327366,2025-10-31 07:51:55.327366,{},cc9e7158-31df-4c08-b63f-14cdc9e4xyz1,Blue,#0000FF,S,https://images.unsplash.com/photo-1556905055-8f358a7a47b2,175.96,41,False,{}
+9b9134fd-534e-4dce-a799-1dd865c11234,Qbatch Test,False,2025-10-31 07:51:55.327366,2025-10-31 07:51:55.327366,{},cc9e7158-31df-4c08-b63f-14cdc9e4xyz2,Blue,#0000FF,M,https://images.unsplash.com/photo-1556905055-8f358a7a47b2,275.96,41,False,{}
+9b9134fd-534e-4dce-a799-1dd865c11234,Qbatch Test,False,2025-10-31 07:51:55.327366,2025-10-31 07:51:55.327366,{},cc9e7158-31df-4c08-b63f-14cdc9e4xyz3,Black,#0000FF,S,https://images.unsplash.com/photo-1556905055-8f358a7a47b2,275.96,41,False,{}
