@@ -12,61 +12,66 @@ from models import Order, OrderItem, OrderSummary, Product, ProductVariant
 def get_order_summary_task():
     db = SessionLocal()
     try:
-        last_summary = db.query(OrderSummary).order_by(OrderSummary.createdAt.desc()).first()
+        # Get the *one* summary row
+        summary = db.query(OrderSummary).first()
 
-        if last_summary:
-            last_summary_time = last_summary.createdAt
-            print(f"📅 Last summary created at: {last_summary_time}")
+        # If no summary exists → create one using all existing orders
+        if not summary:
+            print("🆕 No summary exists. Creating initial summary...")
 
-            new_orders_query = db.query(Order).filter(Order.createdAt > last_summary_time)
-            new_order_items_query = (
-                db.query(OrderItem)
-                .join(Order, OrderItem.orderId == Order.id)
-                .filter(Order.createdAt > last_summary_time)
-            )
-
-            new_total_orders = new_orders_query.count()
-            new_total_products = db.query(func.coalesce(func.sum(OrderItem.quantity), 0))\
-                .join(Order, OrderItem.orderId == Order.id)\
-                .filter(Order.createdAt > last_summary_time)\
-                .scalar() or 0
-            new_total_amount = db.query(func.coalesce(func.sum(Order.amount), 0.0))\
-                .filter(Order.createdAt > last_summary_time)\
-                .scalar() or 0.0
-
-            print(
-                f"🆕 New since last summary -> orders: {new_total_orders}, "
-                f"products: {new_total_products}, amount: {new_total_amount}"
-            )
-
-            if new_total_orders > 0 or new_total_products > 0 or new_total_amount > 0:
-                new_summary = OrderSummary(
-                    id=str(uuid.uuid4()),
-                    totalOrders=last_summary.totalOrders + new_total_orders,
-                    totalProductsInOrders=last_summary.totalProductsInOrders + new_total_products,
-                    totalOrderAmount=last_summary.totalOrderAmount + new_total_amount
-                )
-                db.add(new_summary)
-                db.commit()
-                print(f"✅ Created incremental OrderSummary: {new_summary.id}")
-            else:
-                print("ℹ️ No new orders since last summary. Skipping creation.")
-
-        else:
-            print("🆕 No previous summary found. Creating initial summary.")
             total_orders = db.query(func.count(Order.id)).scalar() or 0
             total_products = db.query(func.coalesce(func.sum(OrderItem.quantity), 0)).scalar() or 0
             total_amount = db.query(func.coalesce(func.sum(Order.amount), 0.0)).scalar() or 0.0
 
-            new_summary = OrderSummary(
+            summary = OrderSummary(
                 id=str(uuid.uuid4()),
                 totalOrders=total_orders,
                 totalProductsInOrders=total_products,
-                totalOrderAmount=total_amount
+                totalOrderAmount=total_amount,
+                createdAt=datetime.utcnow()
             )
-            db.add(new_summary)
+            db.add(summary)
             db.commit()
-            print(f"✅ Created initial OrderSummary: {new_summary.id}")
+            print("✅ Initial summary created.")
+            return {"status": "success"}
+
+        # If summary exists → update it incrementally
+        print(f"📅 Existing summary created at: {summary.createdAt}")
+
+        # Find new orders since summary.createdAt
+        new_orders = db.query(Order).filter(Order.createdAt > summary.createdAt)
+
+        new_total_orders = new_orders.count()
+
+        new_total_products = (
+            db.query(func.coalesce(func.sum(OrderItem.quantity), 0))
+            .join(Order, OrderItem.orderId == Order.id)
+            .filter(Order.createdAt > summary.createdAt)
+            .scalar() or 0
+        )
+
+        new_total_amount = (
+            db.query(func.coalesce(func.sum(Order.amount), 0.0))
+            .filter(Order.createdAt > summary.createdAt)
+            .scalar() or 0.0
+        )
+
+        print(
+            f"🆕 Increment -> orders: {new_total_orders}, "
+            f"products: {new_total_products}, amount: {new_total_amount}"
+        )
+
+        # Update summary in place (NOT create new row)
+        if new_total_orders > 0 or new_total_products > 0 or new_total_amount > 0:
+            summary.totalOrders += new_total_orders
+            summary.totalProductsInOrders += new_total_products
+            summary.totalOrderAmount += new_total_amount
+            summary.createdAt = datetime.utcnow()  # move forward
+
+            db.commit()
+            print("✅ Summary updated (no new rows created).")
+        else:
+            print("ℹ️ No new orders since last summary.")
 
         return {"status": "success"}
 
