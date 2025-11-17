@@ -81,15 +81,17 @@ def get_order_summary_task():
 @celery.task(name="tasks.import_products_from_csv")
 def import_products_from_csv(csv_path: str):
     """
-    Background task to import Products and Variants from a CSV file.
-    CSV columns:
-    product_id,title,isDeleted,createdAt,updatedAt,metadata,
-    variant_id,color,colorCode,size,img,price,stock,variant_isDeleted,variant_metadata
+    Import Products and Variants from CSV.
+
+    CSV STRUCTURE:
+    product_index,title,color,colorCode,size,img,price,stock
     """
+
     db = SessionLocal()
     imported_count = 0
     skipped_count = 0
     products_cache = {}
+    chunk = 400
 
     print(f"📂 Starting product import from: {csv_path}")
 
@@ -99,48 +101,43 @@ def import_products_from_csv(csv_path: str):
 
             for i, row in enumerate(reader, start=1):
                 try:
-                    product_id = row.get("product_id") or str(uuid.uuid4())
+                    product_index = row.get("product_index")
                     title = row.get("title", "").strip()
-                    is_deleted = row.get("isDeleted", "false").lower() == "true"
-                    now = datetime.utcnow()
 
+                    if not product_index:
+                        raise ValueError("product_index is required")
 
-                    created_at = now
-                    updated_at = now
+                    product = products_cache.get(product_index)
 
-                    product = products_cache.get(product_id)
                     if not product:
-                        product = db.query(Product).filter(Product.id == product_id).first()
-                        if not product:
-                            product = Product(
-                                id=product_id,
-                                title=title,
-                                isDeleted=is_deleted,
-                                createdAt=created_at,
-                                updatedAt=updated_at,
-                            )
-                            db.add(product)
-                        products_cache[product_id] = product
+                        product = Product(
+                            id=str(uuid.uuid4()),
+                            title=title,
+                            createdAt=datetime.utcnow(),
+                            updatedAt=datetime.utcnow(),
+                        )
+                        db.add(product)
+                        db.commit()
+                        products_cache[product_index] = product
 
                     variant = ProductVariant(
-                        id=row.get("variant_id") or str(uuid.uuid4()),
+                        id=str(uuid.uuid4()),
                         productId=product.id,
                         color=row.get("color", "").strip(),
                         colorCode=row.get("colorCode") or None,
-                        size=row.get("size", "").strip() or "M",
+                        size=row.get("size") or "M",
                         img=row.get("img", "").strip(),
-                        price=float(row.get("price") or 0.0),
+                        price=float(row.get("price") or 0),
                         stock=int(row.get("stock") or 0),
-                        isDeleted=row.get("variant_isDeleted", "false").lower() == "true",
-                        createdAt=created_at,
-                        updatedAt=updated_at,
-                        metadata=row.get("variant_metadata") or "{}"
+                        createdAt=datetime.utcnow(),
+                        updatedAt=datetime.utcnow(),
                     )
+
                     db.add(variant)
+                    db.commit()
                     imported_count += 1
 
-                    if i % 200 == 0:
-                        db.commit()
+                    if i % chunk == 0:
                         print(f"✅ Imported {i} rows so far...")
 
                 except IntegrityError as e:
@@ -153,9 +150,8 @@ def import_products_from_csv(csv_path: str):
                     skipped_count += 1
                     print(f"❌ Error at row {i}: {str(e)}")
 
-            db.commit()
 
-        print(f"🎉 Import complete! ✅ Imported {imported_count}, ⚠️ Skipped {skipped_count}.")
+        print(f"🎉 Import complete! Imported: {imported_count}, Skipped: {skipped_count}")
         return {"imported": imported_count, "skipped": skipped_count}
 
     except FileNotFoundError:

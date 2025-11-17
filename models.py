@@ -16,7 +16,7 @@ class SizeEnum(enum.Enum):
 class OrderStatusEnum(enum.Enum):
     PENDING = "PENDING"
     FAILED = "FAILED"
-    FULFILLED = "FULFILLED"
+    PAID = "PAID"
     SHIPPED = "SHIPPED"
 
 # --- Models ---
